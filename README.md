@@ -2,7 +2,7 @@
 
 Firmware ESP8266 BA129 untuk mengendalikan daya HDMI splitter dari backend rental PlayStation. HTTP API mengatur sesi; timer lokal mematikan relay saat waktu habis walaupun Wi-Fi/server terputus. OTA tersedia untuk pemeliharaan saat tidak ada sesi aktif.
 
-Status: versi awal. Build dan tes logika dilakukan lokal; firmware aplikasi ini belum di-flash ke BA129. Perilaku relay saat boot, HTTP lewat Wi-Fi, OTA, dan pemutusan gambar HDMI masih perlu diuji pada perangkat.
+Status: firmware 0.1.1 sudah di-flash ke BA129 dan tersambung Wi-Fi. HTTP sesi/timer dan upload OTA sudah diuji pada perangkat; lihat [laporan bench test](docs/bench-test.md). Kontak relay secara fisik, pemutusan gambar HDMI, ketepatan timer saat client lambat, dan perilaku saat jaringan putus masih perlu diuji.
 
 ## Perangkat
 
@@ -36,6 +36,14 @@ IO0 BA129 -> GND, lalu tekan RESET BA129. C3 tetap menjalankan firmware bridge.
 ```
 
 Port dapat berubah. Setelah berhasil, lepas IO0–GND dan tekan RESET BA129. Log serial 57600 menampilkan IP setelah Wi-Fi tersambung. Perintah upload menulis firmware aplikasi dan mengganti firmware lama; backup 64 KB sebelumnya bukan backup penuh 4 MB. Jangan meng-upload jika ingin mempertahankan firmware pabrik tanpa backup lengkap.
+
+Pada bench test, uploader esptool 3 bawaan PlatformIO gagal saat stub upload. Jalur yang berhasil memakai **esptool 5.3.1** terpasang terpisah, setelah IO0–GND dan RESET:
+
+```sh
+esptool --chip esp8266 --port /dev/cu.usbmodem11401 --baud 57600 --before no-reset --after no-reset write-flash --flash-mode dio --flash-freq 40m --flash-size 4MB 0x0 .pio/build/ba129/firmware.bin
+```
+
+Perintah `esptool` memerlukan instalasi versi 5 pada PATH; versi itu tersedia dari paket Arduino ESP32 pada laptop pengujian. PlatformIO uploader lama belum diperbaiki. Sesudah penulisan, lepas IO0–GND dan RESET untuk menjalankan aplikasi.
 
 ## HTTP API
 
