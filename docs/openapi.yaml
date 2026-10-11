@@ -1,0 +1,106 @@
+openapi: 3.0.3
+info:
+  title: ESP Switch Rental API
+  version: 0.1.0
+  description: Local HTTP API. One backend owns session IDs and revisions. All timers use remaining seconds, not increments.
+servers:
+  - url: http://192.168.1.100
+security:
+  - bearerAuth: []
+paths:
+  /status:
+    get:
+      summary: Read device status and current boot identity
+      responses:
+        '200':
+          description: Status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  device_id: {type: string}
+                  firmware_version: {type: string}
+                  boot_id: {type: string}
+                  relay_on: {type: boolean}
+                  session_id: {type: string}
+                  revision: {type: integer}
+                  generation: {type: integer}
+                  remaining_seconds: {type: integer}
+                  ota_window_open: {type: boolean}
+                  ota_updating: {type: boolean}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+  /session/start:
+    post:
+      summary: Start a new session; identical retries do not restart its timer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - {$ref: '#/components/schemas/TimedCommand'}
+                - type: object
+                  required: [expected_generation]
+                  properties:
+                    expected_generation: {type: integer, minimum: 0}
+                    revision: {type: integer, enum: [1]}
+      responses: &commandResponses
+        '200': {description: Applied or identical retry; response is current status}
+        '400': {description: Invalid JSON or fields}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '409': {description: Boot, session, revision, generation, or maintenance conflict}
+        '413': {description: Body exceeds 512 bytes}
+  /session/update:
+    post:
+      summary: Replace remaining time; revision must increase
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/TimedCommand'}
+      responses: *commandResponses
+  /session/stop:
+    post:
+      summary: Stop current session; revision must increase
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/Command'}
+      responses: *commandResponses
+  /maintenance/ota:
+    post:
+      summary: Open an idle OTA window for 300 seconds, or close it
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [boot_id, enabled]
+              properties:
+                boot_id: {type: string}
+                enabled: {type: boolean}
+      responses: *commandResponses
+components:
+  securitySchemes:
+    bearerAuth: {type: http, scheme: bearer}
+  responses:
+    Unauthorized:
+      description: Missing or invalid bearer token
+  schemas:
+    Command:
+      type: object
+      required: [boot_id, session_id, revision]
+      properties:
+        boot_id: {type: string}
+        session_id: {type: string, minLength: 1, maxLength: 64, pattern: '^[A-Za-z0-9_-]+$'}
+        revision: {type: integer, minimum: 1, maximum: 4294967295}
+    TimedCommand:
+      allOf:
+        - {$ref: '#/components/schemas/Command'}
+        - type: object
+          required: [remaining_seconds]
+          properties:
+            remaining_seconds: {type: integer, minimum: 1, maximum: 86400}

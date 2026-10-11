@@ -1,0 +1,14 @@
+name: Firmware checks
+on: [push, pull_request]
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install platformio==6.2.0
+      - run: pio test -e native
+      - run: pio run -e ba129
+      - run: python -m py_compile scripts/*.py
