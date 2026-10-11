@@ -12,6 +12,10 @@ class RentalSession {
   uint32_t revision = 0;
   uint32_t generation = 0;
 
+  void forceOff() {
+    if (active) ++generation;
+    active = false;
+  }
   void tick(uint32_t now) {
     if (active && uint32_t(now - since_) >= durationMs_) active = false;
   }

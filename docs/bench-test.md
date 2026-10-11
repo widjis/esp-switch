@@ -1,5 +1,9 @@
 # BA129 bench test — 11 Oktober 2026
 
+## Pembaruan 0.1.2: override relay
+
+Firmware 0.1.2 di-upload lewat OTA dan versi baru terkonfirmasi dari HTTP status. Sesudah restart relay OFF. Uji langsung pada board lulus untuk: autentikasi override, durasi nol ditolak, ON manual, retry tidak memperpanjang timer, timeout manual OFF, ON manual ditolak selama rental, OFF paksa membatalkan rental, update sesi yang dibatalkan ditolak, generation lama ditolak, dan OFF manual eksplisit. Kondisi akhir idle/relay OFF. Enam tes native juga lulus. Status GPIO belum menjadi pengukuran kontak relay; pengguna sebelumnya sudah mengonfirmasi bunyi relay pada pengujian 0.1.1.
+
 Firmware 0.1.1; ESP8266EX MAC `84:F3:EB:5E:0C:3A`; flash 4 MB. Flash serial melalui bridge C3 pada 57600 baud, USB RX buffer 16 KB. esptool 5.3.1 berhasil menulis firmware dan memverifikasi hash; uploader esptool 3 bawaan PlatformIO gagal mengirim stub.
 
 Scan langsung dari board menemukan SSID `MTI-01` pada 2,4 GHz. Nama awal `mti-01` berbeda huruf besar/kecil, menghasilkan kegagalan koneksi. Konfigurasi lokal dikoreksi; password/token tidak dimasukkan Git. IP saat pengujian `10.60.21.190`, RSSI terhubung sekitar −58 sampai −61 dBm. IP DHCP bisa berubah; gunakan reservasi pada MikroTik.

@@ -22,8 +22,9 @@ def request(base, path, payload=None):
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("base", help="http://device-IP")
-    p.add_argument("action", choices=["status", "start", "update", "stop", "ota-open", "ota-close"])
+    p.add_argument("action", choices=["status", "start", "update", "stop", "ota-open", "ota-close", "relay-on", "relay-off"])
     p.add_argument("--session")
+    p.add_argument("--request-id")
     p.add_argument("--revision", type=int)
     p.add_argument("--seconds", type=int)
     args = p.parse_args()
@@ -31,7 +32,15 @@ def main():
     if args.action == "status":
         print(json.dumps(state, indent=2)); return
     payload = {"boot_id": state["boot_id"]}
-    if args.action.startswith("ota-"):
+    if args.action.startswith("relay-"):
+        payload["expected_generation"] = state["generation"]
+        if args.action == "relay-on":
+            if not args.request_id or args.seconds is None:
+                p.error("--request-id and --seconds required for relay-on")
+            payload["request_id"] = args.request_id
+            payload["duration_seconds"] = args.seconds
+        path = "/relay/" + args.action.split("-")[1]
+    elif args.action.startswith("ota-"):
         payload["enabled"] = args.action == "ota-open"
         path = "/maintenance/ota"
     else:

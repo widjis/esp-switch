@@ -115,3 +115,13 @@ Firmware 0.1.1 menyediakan laporan serial diagnostik pada 57600 baud: scan start
 Tes logika native mencakup retry, revision lama, sesi habis, konflik sesi, batas durasi, dan rollover `millis()`. Selanjutnya uji pada meja tanpa AC: relay startup OFF, sesi pendek, tambah waktu, stop, Wi-Fi putus, reset, autentikasi, dan OTA idle. Fungsi server HTTP sinkron bisa menunda timer saat melayani client lambat; ketepatan cutoff di bawah beban jaringan masih harus diukur. Perilaku GPIO sebelum `setup()` belum dijamin oleh software.
 
 Referensi: [ESP8266 Arduino OTA](https://arduino-esp8266.readthedocs.io/en/latest/ota_updates/readme.html).
+
+## Manual relay override (0.1.2)
+
+Semua request tetap memakai Bearer token. Baca `/status` untuk `boot_id` dan `generation`.
+
+- `POST /relay/on`: `{"boot_id":"BOOT_ID","expected_generation":0,"request_id":"manual-001","duration_seconds":60}`. ON selama 1–86400 detik, lalu OFF otomatis. Ditolak selama sesi rental atau maintenance. Request ID unik; retry identik tidak mengulang timer.
+- `POST /relay/off`: `{"boot_id":"BOOT_ID","expected_generation":1}`. OFF paksa dan membatalkan sesi manual/rental saat ini. Gunakan generation terbaru. Setelah membatalkan sesi aktif, generation naik sehingga retry lama ditolak (409); baca status untuk memastikan OFF.
+- Status `mode`: `idle`, `rental`, atau `manual`. Tidak ada ON tanpa batas waktu. Restart tetap OFF. Rental API ditolak selama override manual aktif.
+
+Endpoint ini memakai timer dan jalur GPIO yang sama dengan sesi rental; tidak melewati autentikasi atau interlock OTA.

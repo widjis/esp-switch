@@ -49,8 +49,21 @@ void session_conflicts_and_bounds() {
   s.tick(86400000);
   TEST_ASSERT_FALSE(s.active);
 }
+void forced_off_blocks_old_commands() {
+  RentalSession s;
+  s.apply("start", "a", 1, 60, 0);
+  s.forceOff();
+  TEST_ASSERT_FALSE(s.active);
+  TEST_ASSERT_EQUAL_UINT32(2, s.generation);
+  TEST_ASSERT_EQUAL(RentalSession::OK, s.apply("start", "a", 1, 60, 1));
+  TEST_ASSERT_FALSE(s.active);
+  TEST_ASSERT_EQUAL(RentalSession::CONFLICT, s.apply("update", "a", 2, 60, 1));
+  TEST_ASSERT_EQUAL(RentalSession::CONFLICT, s.apply("start", "b", 1, 60, 1, 1));
+  TEST_ASSERT_EQUAL(RentalSession::OK, s.apply("start", "b", 1, 60, 1, 2));
+}
 int main() {
   UNITY_BEGIN();
+  RUN_TEST(forced_off_blocks_old_commands);
   RUN_TEST(retry_does_not_extend);
   RUN_TEST(stale_update_and_stop_rejected);
   RUN_TEST(expired_retry_does_not_restart);

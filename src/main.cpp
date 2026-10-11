@@ -10,11 +10,12 @@
 #include "secrets.example.h"
 #endif
 
-constexpr char VERSION[] = "0.1.1";
+constexpr char VERSION[] = "0.1.2";
 constexpr uint8_t RELAY_PIN = 5, LED_PIN = 16;
 ESP8266WebServer server(80);
 RentalSession session;
 String bootId;
+bool manualMode = false;
 bool configured = false, updating = false, otaWindow = false, otaStarted = false;
 uint32_t otaSince = 0;
 String wifiScanReport;
@@ -70,6 +71,7 @@ void status() {
   doc["boot_id"] = bootId;
   doc["uptime_seconds"] = millis() / 1000;
   doc["relay_on"] = session.active && !updating;
+  doc["mode"] = session.active ? (manualMode ? "manual" : "rental") : "idle";
   doc["session_id"] = session.id;
   doc["revision"] = session.revision;
   doc["generation"] = session.generation;
@@ -96,6 +98,7 @@ void command(const char *op) {
   if (!authorized()) return;
   relayTick();
   if (updating || otaWindow) { respond(409, "maintenance_active"); return; }
+  if (manualMode && session.active) { respond(409, "manual_override_active"); return; }
   JsonDocument doc;
   if (!body(doc)) return;
   if (!doc["session_id"].is<const char *>() || !doc["revision"].is<uint32_t>() ||
@@ -117,7 +120,33 @@ void command(const char *op) {
   relayTick();
   if (result == RentalSession::INVALID) respond(400, "invalid_session");
   else if (result == RentalSession::CONFLICT) respond(409, "session_or_revision_conflict");
-  else status();
+  else { manualMode = false; status(); }
+}
+void overrideRelay(bool turnOn) {
+  if (!authorized()) return;
+  relayTick();
+  if (updating || otaWindow) { respond(409, "maintenance_active"); return; }
+  JsonDocument doc;
+  if (!body(doc)) return;
+  if (!doc["expected_generation"].is<uint32_t>()) { respond(400, "expected_generation_required"); return; }
+  if (!turnOn) {
+    if (doc["expected_generation"].as<uint32_t>() != session.generation) { respond(409, "generation_conflict"); return; }
+    session.forceOff(); manualMode = false; relayTick(); status(); return;
+  }
+  if (session.active && !manualMode) { respond(409, "rental_session_active"); return; }
+  if (!doc["request_id"].is<const char *>() || !doc["duration_seconds"].is<uint32_t>()) { respond(400, "invalid_fields"); return; }
+  String requestId = doc["request_id"].as<String>();
+  if (requestId.isEmpty() || requestId.length() > 48) { respond(400, "invalid_request_id"); return; }
+  for (unsigned i = 0; i < requestId.length(); ++i) {
+    char c = requestId[i];
+    if (!isalnum(static_cast<unsigned char>(c)) && c != '-' && c != '_') { respond(400, "invalid_request_id"); return; }
+  }
+  auto result = session.apply("start", (String("manual-") + requestId).c_str(), 1,
+                              doc["duration_seconds"].as<uint32_t>(), millis(),
+                              doc["expected_generation"].as<uint32_t>());
+  if (result == RentalSession::INVALID) respond(400, "invalid_duration");
+  else if (result == RentalSession::CONFLICT) respond(409, "override_conflict");
+  else { manualMode = true; relayTick(); status(); }
 }
 void maintenance() {
   if (!authorized()) return;
@@ -159,6 +188,8 @@ void setup() {
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   server.collectHeaders("Authorization");
   server.on("/status", HTTP_GET, [] { if (authorized()) status(); });
+  server.on("/relay/on", HTTP_POST, [] { overrideRelay(true); });
+  server.on("/relay/off", HTTP_POST, [] { overrideRelay(false); });
   server.on("/session/start", HTTP_POST, [] { command("start"); });
   server.on("/session/update", HTTP_POST, [] { command("update"); });
   server.on("/session/stop", HTTP_POST, [] { command("stop"); });

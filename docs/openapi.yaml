@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: ESP Switch Rental API
-  version: 0.1.1
+  version: 0.1.2
   description: Local HTTP API. One backend owns session IDs and revisions. All timers use remaining seconds, not increments.
 servers:
   - url: http://192.168.1.100
@@ -23,6 +23,7 @@ paths:
                   firmware_version: {type: string}
                   boot_id: {type: string}
                   relay_on: {type: boolean}
+                  mode: {type: string, enum: [idle, rental, manual]}
                   session_id: {type: string}
                   revision: {type: integer}
                   generation: {type: integer}
@@ -82,6 +83,38 @@ paths:
               properties:
                 boot_id: {type: string}
                 enabled: {type: boolean}
+      responses: *commandResponses
+  /relay/on:
+    post:
+      summary: Timed manual ON; rejected during a rental session or OTA maintenance
+      description: Duplicate request_id with identical duration does not restart the timer. Use a new unique request_id for each manual operation.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [boot_id, expected_generation, request_id, duration_seconds]
+              properties:
+                boot_id: {type: string}
+                expected_generation: {type: integer, minimum: 0, maximum: 4294967295}
+                request_id: {type: string, minLength: 1, maxLength: 48, pattern: '^[A-Za-z0-9_-]+$'}
+                duration_seconds: {type: integer, minimum: 1, maximum: 86400}
+      responses: *commandResponses
+  /relay/off:
+    post:
+      summary: Force OFF and cancel current manual or rental session
+      description: Requires current generation from status to avoid stopping a newer session with a delayed command. A stop that cancels an active session increments generation; a repeated old payload then returns 409.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [boot_id, expected_generation]
+              properties:
+                boot_id: {type: string}
+                expected_generation: {type: integer, minimum: 0, maximum: 4294967295}
       responses: *commandResponses
 components:
   securitySchemes:
