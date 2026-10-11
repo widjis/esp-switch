@@ -50,7 +50,7 @@ paths:
         '200': {description: Applied or identical retry; response is current status}
         '400': {description: Invalid JSON or fields}
         '401': {$ref: '#/components/responses/Unauthorized'}
-        '409': {description: Boot, session, revision, generation, or maintenance conflict}
+        '409': {description: "Boot, session, revision, generation, or maintenance conflict"}
         '413': {description: Body exceeds 512 bytes}
   /session/update:
     post:
