@@ -10,13 +10,37 @@
 #include "secrets.example.h"
 #endif
 
-constexpr char VERSION[] = "0.1.0";
+constexpr char VERSION[] = "0.1.1";
 constexpr uint8_t RELAY_PIN = 5, LED_PIN = 16;
 ESP8266WebServer server(80);
 RentalSession session;
 String bootId;
 bool configured = false, updating = false, otaWindow = false, otaStarted = false;
 uint32_t otaSince = 0;
+String wifiScanReport;
+WiFiEventHandler disconnectEvent;
+
+void scanWifiReport() {
+  // Startup only: relay is OFF and no rental session exists yet.
+  int count = WiFi.scanNetworks(false, true);
+  wifiScanReport = "\n[WIFI_SCAN] networks=" + String(count) + " band=2.4GHz\n";
+  for (int i = 0; i < count && i < 50; ++i) {
+    JsonDocument row;
+    row["ssid"] = WiFi.SSID(i);
+    row["rssi_dbm"] = WiFi.RSSI(i);
+    row["channel"] = WiFi.channel(i);
+    row["bssid"] = WiFi.BSSIDstr(i);
+    row["encryption_code"] = WiFi.encryptionType(i);
+    row["hidden"] = WiFi.isHidden(i);
+    String line;
+    serializeJson(row, line);
+    wifiScanReport += line + "\n";
+  }
+  if (count > 50) wifiScanReport += "[WIFI_SCAN] truncated to 50 access points\n";
+  wifiScanReport += "[WIFI_SCAN] end (cached startup scan)\n";
+  WiFi.scanDelete();
+  Serial.print(wifiScanReport);
+}
 
 void relayTick() {
   session.tick(millis());
@@ -116,13 +140,20 @@ void setup() {
   digitalWrite(LED_PIN, HIGH);
   pinMode(LED_PIN, OUTPUT);
   Serial.begin(57600);
+  Serial.printf("\nESP Switch %s boot; relay OFF\n", VERSION);
   char boot[40];
   snprintf(boot, sizeof(boot), "%06x-%08x-%08x", ESP.getChipId(), ESP.random(), ESP.random());
   bootId = boot;
   configured = strlen(WIFI_SSID) > 0 && strlen(API_TOKEN) >= 32 && strlen(OTA_PASSWORD) >= 16;
-  if (!configured) { Serial.println("Configuration missing: relay stays OFF. See README."); return; }
   WiFi.persistent(false);
   WiFi.mode(WIFI_STA);
+  Serial.print("Station MAC: "); Serial.println(WiFi.macAddress());
+  WiFi.disconnect();
+  scanWifiReport();
+  if (!configured) { Serial.println("Configuration missing: relay stays OFF. See README."); return; }
+  disconnectEvent = WiFi.onStationModeDisconnected([](const WiFiEventStationModeDisconnected &event) {
+    Serial.printf("[WIFI] disconnected reason=%u\n", event.reason);
+  });
   WiFi.hostname(DEVICE_NAME);
   WiFi.setAutoReconnect(true);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
@@ -142,6 +173,19 @@ void setup() {
 void loop() {
   relayTick();
   if (!configured) { delay(1); return; }
+  static uint32_t lastDiagnostic = 0;
+  if (uint32_t(millis() - lastDiagnostic) >= 10000) {
+    lastDiagnostic = millis();
+    Serial.printf("[WIFI] status=%d target=%s ip=%s rssi=%d heap=%u\n",
+                  WiFi.status(), WIFI_SSID, WiFi.localIP().toString().c_str(),
+                  WiFi.RSSI(), ESP.getFreeHeap());
+    if (WiFi.status() != WL_CONNECTED) Serial.print(wifiScanReport);
+  }
+  // One-byte diagnostic command, no blocking read and no rescan mid-session.
+  while (Serial.available()) {
+    char c = Serial.read();
+    if (c == 'S' || c == 's') Serial.print(wifiScanReport);
+  }
   static bool logged = false;
   if (!logged && WiFi.status() == WL_CONNECTED) {
     logged = true;

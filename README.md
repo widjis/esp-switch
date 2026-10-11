@@ -102,6 +102,8 @@ Perangkat dan laptop perlu koneksi dua arah untuk ArduinoOTA. Transfer gagal tid
 
 ## Verifikasi sebelum penggunaan rental
 
+Firmware 0.1.1 menyediakan laporan serial diagnostik pada 57600 baud: scan startup menampilkan SSID, RSSI dalam dBm, channel, BSSID, kode enkripsi, dan status hidden (maksimal 50 access point). Setiap 10 detik board melaporkan status koneksi, IP, dan RSSI; saat belum tersambung, hasil scan startup diulang. Kirim karakter `S` melalui serial untuk membaca ulang laporan yang tersimpan. Laporan itu bukan scan baru. Scan hanya dilakukan saat startup dengan relay OFF agar tidak mengganggu timer sesi. Password/token tidak dicetak. Nama SSID hidden mungkin tetap kosong.
+
 Tes logika native mencakup retry, revision lama, sesi habis, konflik sesi, batas durasi, dan rollover `millis()`. Selanjutnya uji pada meja tanpa AC: relay startup OFF, sesi pendek, tambah waktu, stop, Wi-Fi putus, reset, autentikasi, dan OTA idle. Fungsi server HTTP sinkron bisa menunda timer saat melayani client lambat; ketepatan cutoff di bawah beban jaringan masih harus diukur. Perilaku GPIO sebelum `setup()` belum dijamin oleh software.
 
 Referensi: [ESP8266 Arduino OTA](https://arduino-esp8266.readthedocs.io/en/latest/ota_updates/readme.html).
